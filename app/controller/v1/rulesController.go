@@ -2,7 +2,6 @@ package v1
 
 import (
 	"encoding/json"
-	"fmt"
 	"log"
 	"net/http"
 	"rule-service/app/model/rule"
@@ -65,7 +64,6 @@ func GetPrice(w http.ResponseWriter, r *http.Request) {
 	var userData user.User
 	decoder := json.NewDecoder(r.Body)
 	err1 := decoder.Decode(&userData)
-	fmt.Println(userData)
 	if err1 != nil {
 		log.Println("[ERROR]", err1)
 	}

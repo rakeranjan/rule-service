@@ -2,6 +2,7 @@ package services
 
 import (
 	"fmt"
+	"log"
 	"rule-service/app/model/rule"
 	"rule-service/app/model/user"
 	"strings"
@@ -22,7 +23,8 @@ func CalculateDiscount(userData *user.User) *Response {
 	resp := Response{}
 	ruleData := rule.GetRule(strings.TrimSpace(userData.Coupon))
 	if ruleData == nil {
-		resp.Msg = "No Coupon code"
+		log.Println("[INFO]", "INVALID COUPON CODE")
+		resp.Msg = "INVALID COUPON CODE"
 		return &resp
 	}
 	con := decideCondition(userData, ruleData)
@@ -45,9 +47,15 @@ func CalculateDiscount(userData *user.User) *Response {
 func decideCondition(userData *user.User, ruleData *rule.Rule) []int {
 	res := make([]int, 0)
 	res = append(res, calculatePrice(userData.OrderAmount, defaultCalculation(ruleData.Default)))
-	fmt.Println("res :----", res)
+	log.Println("[INFO]", "Discount for Default :-", res[0])
 	res = append(res, calculatePrice(userData.OrderAmount, orderAmountsCalculation(userData, ruleData.OrderAmounts)))
-	fmt.Println("res :----", res)
+	log.Println("[INFO]", "Discount for Order Amount :-", res[1])
+	res = append(res, calculatePrice(userData.OrderAmount, userTypeCalculation(userData, ruleData.UserType)))
+	log.Println("[INFO]", "Discount for User Type :-", res[2])
+	res = append(res, calculatePrice(userData.OrderAmount, referalCalculation(userData, ruleData.Refferal)))
+	log.Println("[INFO]", "Discount for Refferal :-", res[3])
+
+	//-----Same way with other parameters discont can be calculated
 	// referal := referalCalculation(ruleData.Refferal)
 	// fmt.Println("referal :-", referal)
 	// userCount := userCountCalculation(ruleData.UserCounts)
@@ -60,6 +68,36 @@ func decideCondition(userData *user.User, ruleData *rule.Rule) []int {
 	// userType := ruleData.UserType
 	// defaultCal := defaultCalculation(ruleData.Default)
 	return res
+}
+
+func referalCalculation(userData *user.User, referal *rule.RefferalCountDiscount) *rule.Discount {
+	var disc *rule.Discount
+	if referal == nil || referal.RefferalDiscounts == nil {
+		return disc
+	}
+	fmt.Println("orders :- ", referal, "2nd leve", referal.RefferalDiscounts)
+	for i := 0; i < len(referal.RefferalDiscounts); i++ {
+		rangedisc := referal.RefferalDiscounts[i]
+		if userData.OrderAmount >= rangedisc.From && userData.OrderAmount < rangedisc.To {
+			disc = rangedisc.Discount
+		}
+	}
+	return disc
+}
+
+func userTypeCalculation(userData *user.User, userType *rule.UserType) *rule.Discount {
+	var disc *rule.Discount
+
+	if userType == nil || (userType.NormalDiscount == nil && userType.PremiumDiscount == nil) {
+		fmt.Println("no usertype", userType)
+		return disc
+	}
+	if userData.Type == "normal" {
+		disc = userType.NormalDiscount
+	} else if userData.Type == "premium" {
+		disc = userType.PremiumDiscount
+	}
+	return disc
 }
 
 func defaultCalculation(defaultData *rule.Default) *rule.Discount {
@@ -79,7 +117,6 @@ func orderAmountsCalculation(userData *user.User, order *rule.OrderAmounts) *rul
 	for i := 0; i < len(order.OrderAmounts); i++ {
 		rangedisc := order.OrderAmounts[i]
 		if userData.OrderAmount >= rangedisc.From && userData.OrderAmount < rangedisc.To {
-			fmt.Println(userData.OrderAmount, rangedisc.From, "-", rangedisc.To, "-", rangedisc.Discount)
 			disc = rangedisc.Discount
 		}
 	}
@@ -92,13 +129,10 @@ func calculatePrice(amount int, disc *rule.Discount) (discount int) {
 		return value
 	}
 	percentDsicount := (amount * disc.Percent) / 100
-	fmt.Println("percent :- ", percentDsicount)
 	fixedDsicount := disc.Fixed
-	fmt.Println("fixed :- ", fixedDsicount)
 	switch disc.Type {
 	case "max":
 		value = max(percentDsicount, fixedDsicount)
-		fmt.Println("value :- ", value)
 	case "min":
 		value = min(percentDsicount, fixedDsicount)
 	case "fixed":
